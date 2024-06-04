@@ -76,8 +76,6 @@ namespace EmailRouter
         {
             try
             {
-                Console.WriteLine("Messaged received:");
-                message.Dump();
                 var apiKey = Environment.GetEnvironmentVariable("SG_API_KEY");
                 var client = new SendGridClient(apiKey);
 
@@ -109,10 +107,7 @@ namespace EmailRouter
                 }
                 
                 var response = await client.SendEmailAsync(sendGridMessage);
-                Console.WriteLine("response is");
-                response.DumpConsole();
                 Console.WriteLine($"Email sent to SendGrid: Status code {response.StatusCode}");
-                Console.WriteLine(response);
             }
             catch (Exception ex)
             {
