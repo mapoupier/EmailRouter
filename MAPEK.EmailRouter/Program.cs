@@ -1,0 +1,108 @@
+﻿using System.Buffers;
+using System.Text;
+using SmtpServer;
+using SmtpServer.ComponentModel;
+using SmtpServer.Protocol;
+using SmtpServer.Storage;
+using MimeKit;
+using SendGrid;
+using SendGrid.Helpers.Mail;
+using SmtpServer.Mail;
+
+namespace EmailRouter
+{
+    class Program
+    {
+        static async Task Main(string[] args)
+        {
+            var options = new SmtpServerOptionsBuilder()
+                .ServerName("localhost")
+                .Port(25)
+                .Build();
+
+            var serviceProvider = new ServiceProvider();
+            serviceProvider.Add(new MailboxFilter());
+            serviceProvider.Add(new MessageStore());
+
+            var smtpServer = new SmtpServer.SmtpServer(options, serviceProvider);
+            _ = smtpServer.StartAsync(CancellationToken.None);
+
+            Console.WriteLine("SMTP server running on port 25. Press Enter to exit.");
+            Console.ReadKey();
+
+            smtpServer.Shutdown();
+        }
+    }
+
+    public class MailboxFilter : IMailboxFilter
+    {
+        public Task<bool> CanAcceptFromAsync(ISessionContext context, IMailbox from, int size, CancellationToken cancellationToken)
+        {
+            return Task.FromResult(true);
+        }
+
+        public Task<bool> CanDeliverToAsync(ISessionContext context, IMailbox to, IMailbox from, CancellationToken cancellationToken)
+        {
+            return Task.FromResult(true);
+        }
+    }
+
+    public class MessageStore : IMessageStore
+    {
+        public async Task<SmtpResponse> SaveAsync(ISessionContext context, IMessageTransaction transaction,
+            ReadOnlySequence<byte> buffer, CancellationToken cancellationToken)
+        {
+            var text = Encoding.UTF8.GetString(buffer.ToArray());
+            var message = MimeMessage.Load(new MemoryStream(buffer.ToArray()));
+
+            await HandleMessageAsync(message);
+
+            return SmtpResponse.Ok;
+        }
+
+        private static async Task HandleMessageAsync(MimeMessage message)
+        {
+            try
+            {
+                var apiKey = Environment.GetEnvironmentVariable("SG_API_KEY");
+                var client = new SendGridClient(apiKey);
+
+                var from = message.From.Mailboxes.First();
+
+                var sendGridMessage = new SendGridMessage
+                {
+                    From = new EmailAddress(from.Address, from.Name),
+                    Subject = message.Subject,
+                    HtmlContent = message.HtmlBody ?? message.TextBody,
+                    PlainTextContent = message.TextBody
+                };
+
+                foreach (var to in message.To.Mailboxes) 
+                    sendGridMessage.AddTo(new EmailAddress(to.Address, to.Name));
+                
+
+                foreach (var cc in message.Cc.Mailboxes) 
+                    sendGridMessage.AddCc(new EmailAddress(cc.Address, cc.Name));
+                
+
+                foreach (var attachment in message.Attachments)
+                {
+                    using var memoryStream = new MemoryStream();
+                    if (attachment is not MimePart part) continue;
+                    
+                    await part.Content.DecodeToAsync(memoryStream);
+                    var bytes = memoryStream.ToArray();
+                    sendGridMessage.AddAttachment(part.FileName, Convert.ToBase64String(bytes),
+                        part.ContentType.MimeType);
+                }
+                
+                var response = await client.SendEmailAsync(sendGridMessage);
+                Console.WriteLine($"Email sent to SendGrid: Status code {response.StatusCode}");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error forwarding email: {ex.Message}");
+            }
+        }
+    }
+}
