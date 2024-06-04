@@ -35,10 +35,11 @@ namespace EmailRouter
                 cancellationTokenSource.Cancel();
             };
 
-            await smtpServer.StartAsync(cancellationToken);
-
+            _ = smtpServer.StartAsync(cancellationToken);
+            Console.WriteLine("Press CTRL-C to stop the service");
             // Instead of waiting for a key press, wait for the cancellation token to be triggered
             await Task.Delay(Timeout.Infinite, cancellationToken);
+            Console.WriteLine("The service has stopped");
         }
     }
 
