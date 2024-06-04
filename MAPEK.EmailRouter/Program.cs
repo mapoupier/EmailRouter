@@ -1,5 +1,6 @@
 ﻿using System.Buffers;
 using System.Text;
+using Dumpify;
 using SmtpServer;
 using SmtpServer.ComponentModel;
 using SmtpServer.Protocol;
@@ -35,6 +36,8 @@ namespace EmailRouter
                 cancellationTokenSource.Cancel();
             };
 
+            AppDomain.CurrentDomain.ProcessExit += (sender, eventArgs) => { cancellationTokenSource.Cancel(); };
+            
             _ = smtpServer.StartAsync(cancellationToken);
             Console.WriteLine("Press CTRL-C to stop the service");
             // Instead of waiting for a key press, wait for the cancellation token to be triggered
@@ -73,6 +76,8 @@ namespace EmailRouter
         {
             try
             {
+                Console.WriteLine("Messaged received:");
+                message.Dump();
                 var apiKey = Environment.GetEnvironmentVariable("SG_API_KEY");
                 var client = new SendGridClient(apiKey);
 
@@ -89,11 +94,9 @@ namespace EmailRouter
                 foreach (var to in message.To.Mailboxes) 
                     sendGridMessage.AddTo(new EmailAddress(to.Address, to.Name));
                 
-
                 foreach (var cc in message.Cc.Mailboxes) 
                     sendGridMessage.AddCc(new EmailAddress(cc.Address, cc.Name));
                 
-
                 foreach (var attachment in message.Attachments)
                 {
                     using var memoryStream = new MemoryStream();
@@ -106,7 +109,10 @@ namespace EmailRouter
                 }
                 
                 var response = await client.SendEmailAsync(sendGridMessage);
+                Console.WriteLine("response is");
+                response.DumpConsole();
                 Console.WriteLine($"Email sent to SendGrid: Status code {response.StatusCode}");
+                Console.WriteLine(response);
             }
             catch (Exception ex)
             {
