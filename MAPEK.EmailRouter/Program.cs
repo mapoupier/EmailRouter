@@ -25,12 +25,20 @@ namespace EmailRouter
             serviceProvider.Add(new MessageStore());
 
             var smtpServer = new SmtpServer.SmtpServer(options, serviceProvider);
-            _ = smtpServer.StartAsync(CancellationToken.None);
 
-            Console.WriteLine("SMTP server running on port 25. Press Enter to exit.");
-            Console.ReadKey();
+            var cancellationTokenSource = new CancellationTokenSource();
+            var cancellationToken = cancellationTokenSource.Token;
 
-            smtpServer.Shutdown();
+            Console.CancelKeyPress += (sender, eventArgs) =>
+            {
+                eventArgs.Cancel = true;
+                cancellationTokenSource.Cancel();
+            };
+
+            await smtpServer.StartAsync(cancellationToken);
+
+            // Instead of waiting for a key press, wait for the cancellation token to be triggered
+            await Task.Delay(Timeout.Infinite, cancellationToken);
         }
     }
 
