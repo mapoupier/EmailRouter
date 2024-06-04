@@ -87,8 +87,8 @@ namespace EmailRouter
                 {
                     From = new EmailAddress(from.Address, from.Name),
                     Subject = message.Subject,
-                    HtmlContent = message.HtmlBody ?? message.TextBody,
-                    PlainTextContent = message.TextBody
+                    HtmlContent = message.HtmlBody ?? message.TextBody ?? "No Content Provided",
+                    PlainTextContent = message.TextBody ?? "No Content Provided"
                 };
 
                 foreach (var to in message.To.Mailboxes) 
