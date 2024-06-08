@@ -10,7 +10,6 @@ EmailRouter is a tool designed to help legacy applications send emails over SMTP
 
 ## Requirements
 
-- .NET Core 3.1 or later
 - SendGrid API Key
 
 ## Installation
